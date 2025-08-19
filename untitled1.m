@@ -84,7 +84,8 @@ for ch = 1:channel_realizations
         C_eta_opt = (2/pi)*(asin(Ko*Cz_opt*Ko) - Ko*Cz_opt*Ko) + Ko*B_opt*Cn_r*B_opt'*Ko;
         I_select(i,ch) = 0.5*log2(det(eye(2*Nr+alpha) + pinv(real(C_eta_opt)) * ((sigma_x^2/2)*H_eff_opt*H_eff_opt')));
         % ---------- Red Greedy ----------
-        [~, B_greedy_norm, K_greedy, Cz_r_greedy] = greedy_search(B_all, alpha, I_Nr_r, Cn_r, H_r, Cx_r, size(B_all,1));
+        % Red Greedy usando el nuevo algoritmo
+        [~, B_greedy_norm, K_greedy, Cz_r_greedy] = greedy_otro(B_all, alpha, I_Nr_r, Cn_r, H_r, Cx_r, size(B_all,1));
         H_eff_greedy_norm = sqrt(2/pi)*K_greedy*B_greedy_norm*H_r;
         C_eta_greedy_norm = (2/pi)*(asin(K_greedy*Cz_r_greedy*K_greedy) - K_greedy*Cz_r_greedy*K_greedy) + K_greedy*B_greedy_norm*Cn_r*B_greedy_norm'*K_greedy;
         I_greedy(i,ch) = 0.5*log2(det(eye(2*Nr+alpha) + pinv(real(C_eta_greedy_norm)) * ((sigma_x^2/2)*H_eff_greedy_norm*H_eff_greedy_norm')));
