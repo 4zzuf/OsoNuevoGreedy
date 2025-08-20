@@ -20,6 +20,7 @@ I_full = zeros(length(SNR), channel_realizations);
 I_withoutB = zeros(length(SNR), channel_realizations);
 I_greedy = zeros(length(SNR), channel_realizations);
 I_sinr = zeros(length(SNR), channel_realizations);
+capacities_exhaustive = zeros(length(SNR), channel_realizations);
 % Modulación QPSK
 n_bits = 100;
 bits_symbol = 2;
@@ -29,11 +30,20 @@ constelation_points = exp(1i*pi*(2*(1:M)-1)/M);
 constelation_symbols = flipud((dec2bin(M-1:-1:0)-'0'));
 gray_code_data = gray_code(constelation_symbols,M);
 %% Matrices de comparación
- B_all = (1/sqrt(2)) * get_total_perm(2*Nr);
+B_all = (1/sqrt(2)) * get_total_perm(2*Nr);
 B_rand = (1/sqrt(2)) * get_random_perm(alpha, 2 * Nr);
 B_random_full = [I_Nr_r; B_rand];
 B_alpha_f = 1/sqrt(2) * get_random_perm(full, 2 * Nr);
 B_full = [I_Nr_r; B_alpha_f];
+
+% check feasibility of exhaustive search
+n_candidates = size(B_all, 1);
+num_comb_exh = nchoosek(n_candidates, alpha);
+use_exhaustive = isfinite(num_comb_exh) && num_comb_exh <= 1e7;
+if ~use_exhaustive
+    warning('untitled1:ExhaustiveSkip', ...
+        'Skipping exhaustive search (%g combinations).', num_comb_exh);
+end
 %% Simulación
 h_waitbar = waitbar(0, 'Iniciando simulación...');
 for ch = 1:channel_realizations
@@ -94,6 +104,17 @@ for ch = 1:channel_realizations
         H_eff_sinr = sqrt(2/pi) * K_SINR * B_seq_SINR * H_r;
         C_eta_sinr = (2/pi)*(asin(K_SINR*Cz_SINR*K_SINR) - K_SINR*Cz_SINR*K_SINR) + K_SINR*B_seq_SINR*Cn_r*B_seq_SINR'*K_SINR;
         I_sinr(i,ch) = 0.5*log2(det(eye(2*Nr+alpha) + pinv(real(C_eta_sinr)) * ((sigma_x^2/2)*H_eff_sinr*H_eff_sinr')));
+        % ---------- Red Exhaustiva ----------
+        if use_exhaustive
+            [B_es, K_es, Cz_es] = es_search(B_all, alpha, I_Nr_r, Cn_r, H_r, Cx_r);
+            H_eff_es = sqrt(2/pi) * K_es * B_es * H_r;
+            C_eta_es = (2/pi)*(asin(K_es*Cz_es*K_es) - K_es*Cz_es*K_es) + ...
+                        K_es*B_es*Cn_r*B_es'*K_es;
+            capacities_exhaustive(i,ch) = 0.5*log2(det(eye(2*Nr+alpha) + ...
+                pinv(real(C_eta_es)) * ((sigma_x^2/2)*H_eff_es*H_eff_es')));
+        else
+            capacities_exhaustive(i,ch) = NaN;
+        end
     end
 end
 close(h_waitbar);
@@ -104,6 +125,7 @@ I_full_av = mean(I_full, 2);
 I_withoutB_av = mean(I_withoutB, 2);
 I_greedy_av = mean(I_greedy, 2);
 I_sinr_av = mean(I_sinr, 2);
+I_exhaustive_av = mean(capacities_exhaustive, 2, 'omitnan');
 %% Gráfico final
 figure;
 plot(SNR_dB, I_random_av, 'g-s', 'LineWidth', 2); hold on;
@@ -112,10 +134,16 @@ plot(SNR_dB, I_full_av, 'r-x', 'LineWidth', 2);
 plot(SNR_dB, I_withoutB_av, 'k-.', 'LineWidth', 2);
 plot(SNR_dB, I_greedy_av, 'm-d', 'LineWidth', 2);
 plot(SNR_dB, I_sinr_av, 'c-^', 'LineWidth', 2);
+if use_exhaustive
+    plot(SNR_dB, I_exhaustive_av, 'y-*', 'LineWidth', 2);
+end
 xlabel('SNR (dB)', 'Interpreter', 'latex');
 ylabel('Capacidad (bits/s/Hz)', 'Interpreter', 'latex');
-legend({'Random', 'Optimized', 'Full', 'No Comparators', 'Greedy', 'SINR Search'}, ...
-    'Interpreter', 'latex', 'Location', 'SouthEast');
+legend_entries = {'Random', 'Optimized', 'Full', 'No Comparators', 'Greedy', 'SINR Search'};
+if use_exhaustive
+    legend_entries{end+1} = 'Exhaustive Search';
+end
+legend(legend_entries, 'Interpreter', 'latex', 'Location', 'SouthEast');
 title('Capacidad vs. SNR para diferentes topologías de comparadores', 'Interpreter', 'latex');
 grid on;
 

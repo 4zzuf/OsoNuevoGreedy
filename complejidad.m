@@ -2,7 +2,8 @@
 clear all; close all; clc;
 
 %% Parámetros generales
-Nt = 4; Nr = 4;
+Nt = 4;
+Nr = 4; % Número de antenas receptor
 alpha = 2 * Nr;
 SNR_dB = 0;  % Evaluate at a single SNR (0 dB) to reduce computation time
 SNR = 10.^(SNR_dB / 10);
