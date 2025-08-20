@@ -24,6 +24,7 @@ time_greedy   = zeros(length(SNR), channel_realizations);
 time_sinr     = zeros(length(SNR), channel_realizations);
 time_full     = zeros(length(SNR), channel_realizations);
 time_random   = zeros(length(SNR), channel_realizations);
+time_es       = zeros(length(SNR), channel_realizations);
 
 for i_channel = 1:channel_realizations
     for i = 1:length(SNR)
@@ -61,6 +62,12 @@ for i_channel = 1:channel_realizations
         Time = toc(A);
         time_greedy(i, i_channel) = Time;
 
+        %% Búsqueda Exhaustiva
+        A = tic;
+        [~, ~, ~] = es_search(B_all, alpha, I_Nr_r, Cn_r, H_r, Cx_r);
+        Time = toc(A);
+        time_es(i, i_channel) = Time;
+
         %% Selección basada en SINR
         A = tic;
         [~, ~] = sinr_search(B_all, alpha, I_Nr_r, Cn_r, H_r, Cx_r, sigma_n, Nt, Nr);
@@ -85,6 +92,7 @@ avg_time_random   = mean(time_random(:));
 avg_time_proposed = mean(time_proposed(:));
 avg_time_greedy   = mean(time_greedy(:));
 avg_time_sinr     = mean(time_sinr(:));
+avg_time_es       = mean(time_es(:));
 
 fprintf('\n--- Average Execution Times ---\n');
 fprintf('Full Network:   %.4f seconds\n', avg_time_full);
@@ -92,3 +100,4 @@ fprintf('Random Network: %.4f seconds\n', avg_time_random);
 fprintf('Proposed (CVX): %.4f seconds\n', avg_time_proposed);
 fprintf('Greedy Search:  %.4f seconds\n', avg_time_greedy);
 fprintf('SINR Selection: %.4f seconds\n', avg_time_sinr);
+fprintf('Exhaustive Search: %.4f seconds\n', avg_time_es);
