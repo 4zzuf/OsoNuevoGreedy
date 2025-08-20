@@ -7,7 +7,7 @@ alpha = 2 * Nr;
 SNR_dB = -30:5:40;
 SNR = 10.^(SNR_dB / 10);
 sigma_x = 1;
-channel_realizations = 4;
+channel_realizations = 40;
 full = Nr*(2*Nr-1);
 M_prime_full = 2 * Nr + full;
 M_prime_random = 2 * Nr + alpha;
@@ -118,5 +118,6 @@ legend({'Random', 'Optimized', 'Full', 'No Comparators', 'Greedy', 'SINR Search'
 title('Capacidad vs. SNR para diferentes topologías de comparadores', 'Interpreter', 'latex');
 grid on;
 
+matlab2tikz('filename', 'ComplexidadJ.tex');
 
-
+ 
