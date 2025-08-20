@@ -26,8 +26,14 @@ time_full     = zeros(length(SNR), channel_realizations);
 time_random   = zeros(length(SNR), channel_realizations);
 time_es       = zeros(length(SNR), channel_realizations);
 
+% Waitbar initialization
+total_iterations = channel_realizations * length(SNR);
+h = waitbar(0, 'Processing iterations...');
+iteration = 0;
+
 for i_channel = 1:channel_realizations
     for i = 1:length(SNR)
+        iteration = iteration + 1;
         H = (randn(Nr, Nt) + 1i * randn(Nr, Nt)) / sqrt(2);
         H_r = [real(H), -imag(H); imag(H), real(H)];
         sigma_n = sqrt(sigma_x^2 / SNR(i));
@@ -83,8 +89,13 @@ for i_channel = 1:channel_realizations
         H_eff_r_rand = sqrt(2 / pi) * k_r_rand * B_rand * H_r; %#ok<NASGU>
         Time = toc(A);
         time_random(i, i_channel) = Time;
+
+        % Update waitbar
+        waitbar(iteration / total_iterations, h);
     end
 end
+
+close(h);
 
 %% Promedios de tiempo
 avg_time_full     = mean(time_full(:));
