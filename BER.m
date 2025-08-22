@@ -223,6 +223,7 @@ for h = 1:channel_realizations
     end
     %%%%%%%%%%%%%%%%%%%%%%%%%%
     % Ruido y Señal Recibida
+    combinations = nchoosek(1:full, alpha);
     for i = 1:length(SNR)
         sigma_n = sqrt(sigma_x^2 / SNR(i));
         Cn_r = (sigma_n^2 / 2) * eye(2 * Nr); % Covarianza de ruido en espacio extendido
@@ -241,9 +242,7 @@ for h = 1:channel_realizations
         H_eff_r_q_full = sqrt(2 / pi) * k_r_full * B_full * H_r;
         
         %%
-        tic; 
-        k = alpha;
-        combinations = nchoosek(1:full, k);
+        tic;
         max_capacity = -inf;
         min_BER = Inf;
         
