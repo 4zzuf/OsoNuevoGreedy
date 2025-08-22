@@ -60,17 +60,6 @@ for h = 1:channel_realizations
     B_alpha_f = 1 / sqrt(2) * get_alpha_perm(full, 2 * Nr, position);
     B_full = [I_Nr_r; B_alpha_f];
     %%%%%%%%%%%%%%%%%%%%%%%%%%
-    %%%%% Variance of H_r approach%%%%%
-    new_H_r = abs(H_r).^2;
-    var_H_r = sum(new_H_r,2);
-    [var_H_r_sort,position] = sort(var_H_r,'descend');
-    [var_H_r_sort_2,position_2] = sort(var_H_r,'ascend');
-    %%%%%
-   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Comparator Network Matrices
-    B_prime = 1/sqrt(2) * get_random_perm(alpha,2*Nr);
-    B = [I_Nr_r ; B_prime];
-    %%%%%%%
     B_all_indexes = get_all_perm(n_max_comb , 2*Nr);
     B_all = get_total_perm(2*Nr);
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
