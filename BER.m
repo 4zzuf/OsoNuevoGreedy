@@ -47,37 +47,25 @@ for h = 1:channel_realizations
     H = (randn(Nr, Nt) + 1i * randn(Nr, Nt)) / sqrt(2);
     H_r = [real(H) -imag(H); imag(H) real(H)];
     
-    %%%%%%%%%%%%% Varianza del enfoque H_r%%%%%%%%%%%%%%%%%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%
+    %%% Pre-cálculos %%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%
+    % Varianza del enfoque H_r
     new_H_r = abs(H_r).^2;
     var_H_r = sum(new_H_r, 2);
-    [var_H_r_sort, position] = sort(var_H_r, 'descend');
-    
+    [~, position] = sort(var_H_r, 'descend');
+
     % Matrices de la red de comparadores
     B_prime = 1 / sqrt(2) * get_random_perm(alpha, 2 * Nr);
     B = [I_Nr_r; B_prime];
-    
+    B_all_indexes = get_all_perm(n_max_comb, 2 * Nr);
+    B_all = get_total_perm(2 * Nr);
+
     % LRA-MMSE totalmente conectado
     full = Nr * (2 * Nr - 1); % Número de comparadores totalmente conectados
+    M_prime_full = 2 * Nr + full;
     B_alpha_f = 1 / sqrt(2) * get_alpha_perm(full, 2 * Nr, position);
     B_full = [I_Nr_r; B_alpha_f];
-    %%%%%%%%%%%%%%%%%%%%%%%%%%
-    %%%%% Variance of H_r approach%%%%%
-    new_H_r = abs(H_r).^2;
-    var_H_r = sum(new_H_r,2);
-    [var_H_r_sort,position] = sort(var_H_r,'descend');
-    [var_H_r_sort_2,position_2] = sort(var_H_r,'ascend');
-    %%%%%
-   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Comparator Network Matrices
-    B_prime = 1/sqrt(2) * get_random_perm(alpha,2*Nr);
-    B = [I_Nr_r ; B_prime];
-    %%%%%%%
-    B_all_indexes = get_all_perm(n_max_comb , 2*Nr);
-    B_all = get_total_perm(2*Nr);
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    M_prime_full = 2 * Nr + full;
-    B_alpha_f = 1/sqrt(2) * get_alpha_perm(full,2*Nr,position);
-    B_full = [I_Nr_r ; B_alpha_f];
     %Ruido
     for i = 1:length(SNR)
         sigma_n = sqrt(sigma_x^2 ./ SNR(i));
