@@ -40,6 +40,13 @@ BER_LMMSE = zeros(1, length(SNR));
 BER_LRA_MMSE_g = zeros(1, length(SNR));
 BER_LRA_MMSE_Optimized = zeros(1, length(SNR));
 BER_LRA_MMSE_s = zeros(1, length(SNR));
+% Comprobación de la Parallel Computing Toolbox
+hasPCT = license('test','Distrib_Computing_Toolbox');
+if ~hasPCT
+    warning('Parallel Computing Toolbox no disponible: reduciendo realizaciones.');
+    channel_realizations = min(channel_realizations,10);
+    noise_realizations   = min(noise_realizations,10);
+end
 % Bucle de simulación
 for h = 1:channel_realizations
     % Canal Rayleigh
@@ -151,73 +158,127 @@ for h = 1:channel_realizations
             [W_LRA_MMSE_g, B_g, MSE_1]= greedy_search(B_all, alpha_mse, 2*Nr, I_Nr_r, Cn_r, H_r, Cx_r, n_max_comb, h, MSE_1);
         %%SINR
             [W_LRA_MMSE_s, B_s, MSE_1]= get_B_opt_2_seq_sinr(B_alpha_f, alpha, I_Nr_r, Cn_r, H_r, Cx_r,sigma_n, Nt, Nr);
+
        %%%%%%
-        for n = 1:noise_realizations
-            %% Noise and Received Signal
-            n = (sigma_n * (randn(Nr, n_symbols) + 1i * randn(Nr, n_symbols))) / sqrt(2);
-            y = H * x_qpsk + n;
-            y_r = H_r * x_r + [real(n); imag(n)];
-            z_r = B_select_alpha * y_r;
-            y_1bit = sign(real(y)) + 1i * sign(imag(y));
-            z_1bit = sign(real(z_r)) + 1i * sign(imag(z_r));
-            %% Fully Connected LRA-MMSE Detection
-            z_r_c = B_full * y_r;
-            z_1bit_c = sign(real(z_r_c)) + 1i * sign(imag(z_r_c));
-            x_til_r_3 = W_LRA_MMSE_full' * z_1bit_c;
-            x_til_3 = x_til_r_3(1:Nt, :) + 1i * x_til_r_3(Nt+1:2*Nt, :);
-            x_hat_3 = get_mapped(Nt, n_bits, bits_symbol, x_til_3);
-            BER_LRA_MMSE_full(i) = BER_LRA_MMSE_full(i) + sum(sum(bitxor(x_hat_3, x)));
-            %% Random LRA-MMSE Detection
-            z_r_2 = B * y_r;
-            z_1bit_2 = sign(real(z_r_2)) + 1i * sign(imag(z_r_2));
-            x_til_r_2 = W_LRA_MMSE_rand' * z_1bit_2;
-            x_til_2 = x_til_r_2(1:Nt, :) + 1i * x_til_r_2(Nt+1:2*Nt, :);
-            x_hat_2 = get_mapped(Nt, n_bits, bits_symbol, x_til_2);
-            BER_LRA_MMSE_rand(i) = BER_LRA_MMSE_rand(i) + sum(sum(bitxor(x_hat_2, x)));
-            %% MMSE 1-bit Detection
-            x_til_1bit = W_MMSE_1bit * y_1bit;
-            x_hat_1bit = get_mapped(Nt, n_bits, bits_symbol, x_til_1bit);
-            BER_MMSE_1bit(i) = BER_MMSE_1bit(i) + sum(sum(bitxor(x_hat_1bit, x)));
-            %% LMMSE Detection
-            x_til_lmmse = W_LMMSE * y;
-            x_hat_lmmse = get_mapped(Nt, n_bits, bits_symbol, x_til_lmmse);
-            BER_LMMSE(i) = BER_LMMSE(i) + sum(sum(bitxor(x_hat_lmmse, x)));
-            
-        
-            %% Greedy Search
-            z_r_6 =  B_g*y_r;
-            z_1bit_6 = sign(real(z_r_6)) + 1i*sign(imag(z_r_6));
-             x_til_r_6 = W_LRA_MMSE_g*z_1bit_6;
-            x_til_LRA_6 = x_til_r_6(1:Nt,:) + 1i*x_til_r_6(Nt+1:2*Nt,:);
-            
-            % Mapping
-            x_hat_LRA_6 = get_mapped(Nt,n_bits,bits_symbol,x_til_LRA_6);
-            
-            % Counting errors
-            n_errors_7 = sum(sum(bitxor(x_hat_LRA_6,x)));
-            BER_LRA_MMSE_g(i) = n_errors_7 + BER_LRA_MMSE_g(i);
-           %% SINR
-           z_r_seq = B_s*y_r;
-            z_1bit_seq = sign(real(z_r_seq)) + 1i*sign(imag(z_r_seq));
-            x_til_r_seq = W_LRA_MMSE_s.'*z_1bit_seq;
-            x_til_LRA_seq = x_til_r_seq(1:Nt,:) + 1i*x_til_r_seq(Nt+1:2*Nt,:);
-            
-            % Mapping
-            x_hat_LRA_seq = get_mapped(Nt,n_bits,bits_symbol,x_til_LRA_seq);
-            
-            % Counting errors
-            n_errors_s = sum(sum(bitxor(x_hat_LRA_seq,x)));
-            BER_LRA_MMSE_s(i) = n_errors_s + BER_LRA_MMSE_s(i);
-             % Detección LRA-MMSE optimizada
-        x_tilde_r = W_LRA_MMSE_opt' * z_1bit;
-        x_tilde = x_tilde_r(1:Nt,:) + 1i * x_tilde_r(Nt+1:end,:);
-        %%Mapping
-        x_hat_LRA = get_mapped(Nt, n_bits, bits_symbol, x_tilde);
-        
-        % Counting Errors
-        n_errors_s = sum(sum(bitxor(x_hat_LRA, x)));
-        BER_LRA_MMSE_Optimized(i) = BER_LRA_MMSE_Optimized(i) + n_errors_s;
-            
+        if hasPCT
+            BER_full_tmp = 0;
+            BER_rand_tmp = 0;
+            BER_1bit_tmp = 0;
+            BER_LMMSE_tmp = 0;
+            BER_g_tmp = 0;
+            BER_s_tmp = 0;
+            BER_opt_tmp = 0;
+            parfor idx = 1:noise_realizations
+                %% Noise and Received Signal
+                noise = (sigma_n * (randn(Nr, n_symbols) + 1i * randn(Nr, n_symbols))) / sqrt(2);
+                y = H * x_qpsk + noise;
+                y_r = H_r * x_r + [real(noise); imag(noise)];
+                z_r = B_select_alpha * y_r;
+                y_1bit = sign(real(y)) + 1i * sign(imag(y));
+                z_1bit = sign(real(z_r)) + 1i * sign(imag(z_r));
+                %% Fully Connected LRA-MMSE Detection
+                z_r_c = B_full * y_r;
+                z_1bit_c = sign(real(z_r_c)) + 1i * sign(imag(z_r_c));
+                x_til_r_3 = W_LRA_MMSE_full' * z_1bit_c;
+                x_til_3 = x_til_r_3(1:Nt, :) + 1i * x_til_r_3(Nt+1:2*Nt, :);
+                x_hat_3 = get_mapped(Nt, n_bits, bits_symbol, x_til_3);
+                BER_full_tmp = BER_full_tmp + sum(sum(bitxor(x_hat_3, x)));
+                %% Random LRA-MMSE Detection
+                z_r_2 = B * y_r;
+                z_1bit_2 = sign(real(z_r_2)) + 1i * sign(imag(z_r_2));
+                x_til_r_2 = W_LRA_MMSE_rand' * z_1bit_2;
+                x_til_2 = x_til_r_2(1:Nt, :) + 1i * x_til_r_2(Nt+1:2*Nt, :);
+                x_hat_2 = get_mapped(Nt, n_bits, bits_symbol, x_til_2);
+                BER_rand_tmp = BER_rand_tmp + sum(sum(bitxor(x_hat_2, x)));
+                %% MMSE 1-bit Detection
+                x_til_1bit = W_MMSE_1bit * y_1bit;
+                x_hat_1bit = get_mapped(Nt, n_bits, bits_symbol, x_til_1bit);
+                BER_1bit_tmp = BER_1bit_tmp + sum(sum(bitxor(x_hat_1bit, x)));
+                %% LMMSE Detection
+                x_til_lmmse = W_LMMSE * y;
+                x_hat_lmmse = get_mapped(Nt, n_bits, bits_symbol, x_til_lmmse);
+                BER_LMMSE_tmp = BER_LMMSE_tmp + sum(sum(bitxor(x_hat_lmmse, x)));
+                %% Greedy Search
+                z_r_6 =  B_g*y_r;
+                z_1bit_6 = sign(real(z_r_6)) + 1i*sign(imag(z_r_6));
+                x_til_r_6 = W_LRA_MMSE_g*z_1bit_6;
+                x_til_LRA_6 = x_til_r_6(1:Nt,:) + 1i*x_til_r_6(Nt+1:2*Nt,:);
+                x_hat_LRA_6 = get_mapped(Nt,n_bits,bits_symbol,x_til_LRA_6);
+                BER_g_tmp = BER_g_tmp + sum(sum(bitxor(x_hat_LRA_6,x)));
+                %% SINR
+                z_r_seq = B_s*y_r;
+                z_1bit_seq = sign(real(z_r_seq)) + 1i*sign(imag(z_r_seq));
+                x_til_r_seq = W_LRA_MMSE_s.'*z_1bit_seq;
+                x_til_LRA_seq = x_til_r_seq(1:Nt,:) + 1i*x_til_r_seq(Nt+1:2*Nt,:);
+                x_hat_LRA_seq = get_mapped(Nt,n_bits,bits_symbol,x_til_LRA_seq);
+                BER_s_tmp = BER_s_tmp + sum(sum(bitxor(x_hat_LRA_seq,x)));
+                % Detección LRA-MMSE optimizada
+                x_tilde_r = W_LRA_MMSE_opt' * z_1bit;
+                x_tilde = x_tilde_r(1:Nt,:) + 1i * x_tilde_r(Nt+1:end,:);
+                x_hat_LRA = get_mapped(Nt, n_bits, bits_symbol, x_tilde);
+                BER_opt_tmp = BER_opt_tmp + sum(sum(bitxor(x_hat_LRA, x)));
+            end
+            BER_LRA_MMSE_full(i) = BER_LRA_MMSE_full(i) + BER_full_tmp;
+            BER_LRA_MMSE_rand(i) = BER_LRA_MMSE_rand(i) + BER_rand_tmp;
+            BER_MMSE_1bit(i)    = BER_MMSE_1bit(i)    + BER_1bit_tmp;
+            BER_LMMSE(i)        = BER_LMMSE(i)        + BER_LMMSE_tmp;
+            BER_LRA_MMSE_g(i)   = BER_LRA_MMSE_g(i)   + BER_g_tmp;
+            BER_LRA_MMSE_s(i)   = BER_LRA_MMSE_s(i)   + BER_s_tmp;
+            BER_LRA_MMSE_Optimized(i) = BER_LRA_MMSE_Optimized(i) + BER_opt_tmp;
+        else
+            for idx = 1:noise_realizations
+                %% Noise and Received Signal
+                noise = (sigma_n * (randn(Nr, n_symbols) + 1i * randn(Nr, n_symbols))) / sqrt(2);
+                y = H * x_qpsk + noise;
+                y_r = H_r * x_r + [real(noise); imag(noise)];
+                z_r = B_select_alpha * y_r;
+                y_1bit = sign(real(y)) + 1i * sign(imag(y));
+                z_1bit = sign(real(z_r)) + 1i * sign(imag(z_r));
+                %% Fully Connected LRA-MMSE Detection
+                z_r_c = B_full * y_r;
+                z_1bit_c = sign(real(z_r_c)) + 1i * sign(imag(z_r_c));
+                x_til_r_3 = W_LRA_MMSE_full' * z_1bit_c;
+                x_til_3 = x_til_r_3(1:Nt, :) + 1i * x_til_r_3(Nt+1:2*Nt, :);
+                x_hat_3 = get_mapped(Nt, n_bits, bits_symbol, x_til_3);
+                BER_LRA_MMSE_full(i) = BER_LRA_MMSE_full(i) + sum(sum(bitxor(x_hat_3, x)));
+                %% Random LRA-MMSE Detection
+                z_r_2 = B * y_r;
+                z_1bit_2 = sign(real(z_r_2)) + 1i * sign(imag(z_r_2));
+                x_til_r_2 = W_LRA_MMSE_rand' * z_1bit_2;
+                x_til_2 = x_til_r_2(1:Nt, :) + 1i * x_til_r_2(Nt+1:2*Nt, :);
+                x_hat_2 = get_mapped(Nt, n_bits, bits_symbol, x_til_2);
+                BER_LRA_MMSE_rand(i) = BER_LRA_MMSE_rand(i) + sum(sum(bitxor(x_hat_2, x)));
+                %% MMSE 1-bit Detection
+                x_til_1bit = W_MMSE_1bit * y_1bit;
+                x_hat_1bit = get_mapped(Nt, n_bits, bits_symbol, x_til_1bit);
+                BER_MMSE_1bit(i) = BER_MMSE_1bit(i) + sum(sum(bitxor(x_hat_1bit, x)));
+                %% LMMSE Detection
+                x_til_lmmse = W_LMMSE * y;
+                x_hat_lmmse = get_mapped(Nt, n_bits, bits_symbol, x_til_lmmse);
+                BER_LMMSE(i) = BER_LMMSE(i) + sum(sum(bitxor(x_hat_lmmse, x)));
+                %% Greedy Search
+                z_r_6 =  B_g*y_r;
+                z_1bit_6 = sign(real(z_r_6)) + 1i*sign(imag(z_r_6));
+                x_til_r_6 = W_LRA_MMSE_g*z_1bit_6;
+                x_til_LRA_6 = x_til_r_6(1:Nt,:) + 1i*x_til_r_6(Nt+1:2*Nt,:);
+                x_hat_LRA_6 = get_mapped(Nt,n_bits,bits_symbol,x_til_LRA_6);
+                n_errors_7 = sum(sum(bitxor(x_hat_LRA_6,x)));
+                BER_LRA_MMSE_g(i) = n_errors_7 + BER_LRA_MMSE_g(i);
+                %% SINR
+                z_r_seq = B_s*y_r;
+                z_1bit_seq = sign(real(z_r_seq)) + 1i*sign(imag(z_r_seq));
+                x_til_r_seq = W_LRA_MMSE_s.'*z_1bit_seq;
+                x_til_LRA_seq = x_til_r_seq(1:Nt,:) + 1i*x_til_r_seq(Nt+1:2*Nt,:);
+                x_hat_LRA_seq = get_mapped(Nt,n_bits,bits_symbol,x_til_LRA_seq);
+                n_errors_s = sum(sum(bitxor(x_hat_LRA_seq,x)));
+                BER_LRA_MMSE_s(i) = n_errors_s + BER_LRA_MMSE_s(i);
+                % Detección LRA-MMSE optimizada
+                x_tilde_r = W_LRA_MMSE_opt' * z_1bit;
+                x_tilde = x_tilde_r(1:Nt,:) + 1i * x_tilde_r(Nt+1:end,:);
+                x_hat_LRA = get_mapped(Nt, n_bits, bits_symbol, x_tilde);
+                n_errors_s = sum(sum(bitxor(x_hat_LRA, x)));
+                BER_LRA_MMSE_Optimized(i) = BER_LRA_MMSE_Optimized(i) + n_errors_s;
+            end
         end
     end
 %%%%%%%%%%%%%%%%%%%%%%%%%%
