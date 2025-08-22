@@ -311,56 +311,96 @@ for h = 1:channel_realizations
         % 
         k = alpha;
         combinations = nchoosek(1:full, k);
-        max_capacity = -inf;
-        min_BER = Inf;
-        
+        numComb = size(combinations, 1);
+        capacity_vec = -inf(1, numComb);
+        BER_vec = Inf(1, numComb);
+
         % Búsqueda exhaustiva para los mejores comparadores
-        for j = 1:size(combinations, 1)
-            selected_indices_exh = combinations(j, :);
-            B_select_exh_prime = B_alpha_f(selected_indices_exh, :);
-            B_select_exh = [I_Nr_r; B_select_exh_prime];
-            
-            % Capacidad y Detección para la combinación seleccionada
-            Cz_r_exh = B_select_exh * (H_r * Cx_r * H_r') * B_select_exh' + B_select_exh * Cn_r * B_select_exh';
-            k_r_exh = diag(1 ./ sqrt(diag(Cz_r_exh))); 
-            H_eff_r_q_exh = sqrt(2 / pi) * k_r_exh * B_select_exh * H_r;           
-            C_eta_eff_r_exh = (2 / pi) * (asin(k_r_exh * Cz_r_exh * k_r_exh) - k_r_exh * Cz_r_exh * k_r_exh) + ...
-                               k_r_exh * B_select_exh * Cn_r * B_select_exh' * k_r_exh;
-            capacity = 1 / 2 * log2(det(eye(2 * Nr + alpha) + pinv(real(C_eta_eff_r_exh)) * ...
-                ((sigma_x^2 / 2) * (H_eff_r_q_exh * H_eff_r_q_exh'))));
-            if capacity > max_capacity
-                max_capacity = capacity;
+        if hasPCT
+            parfor j = 1:numComb
+                selected_indices_exh = combinations(j, :);
+                B_select_exh_prime = B_alpha_f(selected_indices_exh, :);
+                B_select_exh = [I_Nr_r; B_select_exh_prime];
+
+                % Capacidad y Detección para la combinación seleccionada
+                Cz_r_exh = B_select_exh * (H_r * Cx_r * H_r') * B_select_exh' + B_select_exh * Cn_r * B_select_exh';
+                k_r_exh = diag(1 ./ sqrt(diag(Cz_r_exh)));
+                H_eff_r_q_exh = sqrt(2 / pi) * k_r_exh * B_select_exh * H_r;
+                C_eta_eff_r_exh = (2 / pi) * (asin(k_r_exh * Cz_r_exh * k_r_exh) - k_r_exh * Cz_r_exh * k_r_exh) + ...
+                                   k_r_exh * B_select_exh * Cn_r * B_select_exh' * k_r_exh;
+                capacity_vec(j) = 1 / 2 * log2(det(eye(2 * Nr + alpha) + pinv(real(C_eta_eff_r_exh)) * ...
+                    ((sigma_x^2 / 2) * (H_eff_r_q_exh * H_eff_r_q_exh'))));
+
+                % Detección y BER
+                errors_total = 0;
+                for n_sim = 1:10
+                    x = (randi(2, [Nt, n_bits]) - 1);
+                    x_qpsk = get_modulation(Nt, n_bits, bits_symbol, constelation_points, gray_code_data, x);
+                    x_r = [real(x_qpsk); imag(x_qpsk)];
+                    n_noise = (sigma_n * (randn(Nr, n_symbols) + 1i * randn(Nr, n_symbols))) / sqrt(2);
+                    y_r = H_r * x_r + [real(n_noise); imag(n_noise)];
+                    % Detección LRA-MMSE
+                    Cn_exh = B_select_exh * Cn_r * B_select_exh';
+                    Cz_exh = B_select_exh * H_r * Cx_r * H_r' * B_select_exh' + Cn_exh;
+                    K_exh = diag(1 ./ sqrt(diag(Cz_exh)));
+                    Czqx_exh = sqrt(2 / pi) * K_exh * B_select_exh * H_r * Cx_r;
+                    Czq_exh = (2 / pi) * asin(K_exh * real(Cz_exh) * K_exh);
+                    W_LRA_MMSE_exh = pinv(Czq_exh) * Czqx_exh;
+                    % Detección
+                    z_r_exh = B_select_exh * y_r;
+                    z_1bit_exh = sign(real(z_r_exh)) + 1i * sign(imag(z_r_exh));
+                    x_til_r_exh = W_LRA_MMSE_exh' * z_1bit_exh;
+                    x_til_exh = x_til_r_exh(1:Nt, :) + 1i * x_til_r_exh(Nt + 1:2 * Nt, :);
+                    x_hat_exh = get_mapped(Nt, n_bits, bits_symbol, x_til_exh);
+                    errors_total = errors_total + sum(sum(bitxor(x_hat_exh, x)));
+                end
+                BER_vec(j) = errors_total / (10 * Nt * n_bits);
             end
-            
-            % Detección y BER
-            errors_total = 0;
-            for n_sim = 1:10
-                x = (randi(2, [Nt, n_bits]) - 1);
-                x_qpsk = get_modulation(Nt, n_bits, bits_symbol, constelation_points, gray_code_data, x);
-                x_r = [real(x_qpsk); imag(x_qpsk)];
-                n_noise = (sigma_n * (randn(Nr, n_symbols) + 1i * randn(Nr, n_symbols))) / sqrt(2);
-                y_r = H_r * x_r + [real(n_noise); imag(n_noise)];
-                % Detección LRA-MMSE
-                Cn_exh = B_select_exh * Cn_r * B_select_exh';
-                Cz_exh = B_select_exh * H_r * Cx_r * H_r' * B_select_exh' + Cn_exh;
-                K_exh = diag(1 ./ sqrt(diag(Cz_exh)));
-                Czqx_exh = sqrt(2 / pi) * K_exh * B_select_exh * H_r * Cx_r;
-                Czq_exh = (2 / pi) * asin(K_exh * real(Cz_exh) * K_exh);
-                W_LRA_MMSE_exh = pinv(Czq_exh) * Czqx_exh;
-                % Detección
-                z_r_exh = B_select_exh * y_r;
-                z_1bit_exh = sign(real(z_r_exh)) + 1i * sign(imag(z_r_exh));
-                x_til_r_exh = W_LRA_MMSE_exh' * z_1bit_exh;
-                x_til_exh = x_til_r_exh(1:Nt, :) + 1i * x_til_r_exh(Nt + 1:2 * Nt, :);
-                x_hat_exh = get_mapped(Nt, n_bits, bits_symbol, x_til_exh);
-                errors_total = errors_total + sum(sum(bitxor(x_hat_exh, x)));
-            end
-            BER_exh_candidate = errors_total / (10 * Nt * n_bits);
-            if BER_exh_candidate < min_BER
-                min_BER = BER_exh_candidate;
+        else
+            for j = 1:numComb
+                selected_indices_exh = combinations(j, :);
+                B_select_exh_prime = B_alpha_f(selected_indices_exh, :);
+                B_select_exh = [I_Nr_r; B_select_exh_prime];
+
+                % Capacidad y Detección para la combinación seleccionada
+                Cz_r_exh = B_select_exh * (H_r * Cx_r * H_r') * B_select_exh' + B_select_exh * Cn_r * B_select_exh';
+                k_r_exh = diag(1 ./ sqrt(diag(Cz_r_exh)));
+                H_eff_r_q_exh = sqrt(2 / pi) * k_r_exh * B_select_exh * H_r;
+                C_eta_eff_r_exh = (2 / pi) * (asin(k_r_exh * Cz_r_exh * k_r_exh) - k_r_exh * Cz_r_exh * k_r_exh) + ...
+                                   k_r_exh * B_select_exh * Cn_r * B_select_exh' * k_r_exh;
+                capacity_vec(j) = 1 / 2 * log2(det(eye(2 * Nr + alpha) + pinv(real(C_eta_eff_r_exh)) * ...
+                    ((sigma_x^2 / 2) * (H_eff_r_q_exh * H_eff_r_q_exh'))));
+
+                % Detección y BER
+                errors_total = 0;
+                for n_sim = 1:10
+                    x = (randi(2, [Nt, n_bits]) - 1);
+                    x_qpsk = get_modulation(Nt, n_bits, bits_symbol, constelation_points, gray_code_data, x);
+                    x_r = [real(x_qpsk); imag(x_qpsk)];
+                    n_noise = (sigma_n * (randn(Nr, n_symbols) + 1i * randn(Nr, n_symbols))) / sqrt(2);
+                    y_r = H_r * x_r + [real(n_noise); imag(n_noise)];
+                    % Detección LRA-MMSE
+                    Cn_exh = B_select_exh * Cn_r * B_select_exh';
+                    Cz_exh = B_select_exh * H_r * Cx_r * H_r' * B_select_exh' + Cn_exh;
+                    K_exh = diag(1 ./ sqrt(diag(Cz_exh)));
+                    Czqx_exh = sqrt(2 / pi) * K_exh * B_select_exh * H_r * Cx_r;
+                    Czq_exh = (2 / pi) * asin(K_exh * real(Cz_exh) * K_exh);
+                    W_LRA_MMSE_exh = pinv(Czq_exh) * Czqx_exh;
+                    % Detección
+                    z_r_exh = B_select_exh * y_r;
+                    z_1bit_exh = sign(real(z_r_exh)) + 1i * sign(imag(z_r_exh));
+                    x_til_r_exh = W_LRA_MMSE_exh' * z_1bit_exh;
+                    x_til_exh = x_til_r_exh(1:Nt, :) + 1i * x_til_r_exh(Nt + 1:2 * Nt, :);
+                    x_hat_exh = get_mapped(Nt, n_bits, bits_symbol, x_til_exh);
+                    errors_total = errors_total + sum(sum(bitxor(x_hat_exh, x)));
+                end
+                BER_vec(j) = errors_total / (10 * Nt * n_bits);
             end
         end
-        
+
+        max_capacity = max(capacity_vec);
+        min_BER = min(BER_vec);
+
         capacities_exhaustive(i, h) = max_capacity;
         BER_exhaustive(i, h) = min_BER;
     end
