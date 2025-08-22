@@ -11,23 +11,24 @@ I_Nt_r = eye(2 * Nt);
 Cx = sigma_x^2 * I_Nt; 
 Cx_r = (1 / 2) * sigma_x^2 * I_Nt_r; 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-channel_realizations = 100;
+channel_realizations =800;
 noise_realizations = 100;
 alpha = 2 * Nr; % 
+alpha_mse=2*Nr;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
 n_max_comb = sum(1:2 * Nr - 1);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% 
+% Bits y Modulación
 n_bits = 100; % Número de bits por usuario
 bits_symbol = 2; % Bits por símbolo
 n_symbols = n_bits / bits_symbol; % Número de símbolos
 M = 2^bits_symbol; % Modulación QPSK
-%
+% Constelación QPSK
 constelation_points = exp(1i * pi * (2 * (1:M) - 1) / M);
 constelation_symbols = flipud((dec2bin(M - 1:-1:0) - '0'));
 gray_code_data = gray_code(constelation_symbols, M);
-%
+% Transmitir bits QPSK
 x = (randi(2, [Nt, n_bits]) - 1);
 x_qpsk = get_modulation(Nt, n_bits, bits_symbol, constelation_points, gray_code_data, x);
 x_r = [real(x_qpsk); imag(x_qpsk)];
@@ -39,33 +40,43 @@ BER_LMMSE = zeros(1, length(SNR));
 BER_LRA_MMSE_g = zeros(1, length(SNR));
 BER_LRA_MMSE_Optimized = zeros(1, length(SNR));
 BER_LRA_MMSE_s = zeros(1, length(SNR));
-MSE_1 = zeros(1,alpha);
-tic; %
 % Bucle de simulación
 for h = 1:channel_realizations
     % Canal Rayleigh
     H = (randn(Nr, Nt) + 1i * randn(Nr, Nt)) / sqrt(2);
     H_r = [real(H) -imag(H); imag(H) real(H)];
     
-    %%%%%%%%%%%%%%%%%%%%%%%%
-    %%% Pre-cálculos %%%%%%
-    %%%%%%%%%%%%%%%%%%%%%%%%
-    % Varianza del enfoque H_r
+    %%%%%%%%%%%%% Varianza del enfoque H_r%%%%%%%%%%%%%%%%%%%%%
     new_H_r = abs(H_r).^2;
     var_H_r = sum(new_H_r, 2);
-    [~, position] = sort(var_H_r, 'descend');
-
+    [var_H_r_sort, position] = sort(var_H_r, 'descend');
+    
     % Matrices de la red de comparadores
     B_prime = 1 / sqrt(2) * get_random_perm(alpha, 2 * Nr);
     B = [I_Nr_r; B_prime];
-    B_all_indexes = get_all_perm(n_max_comb, 2 * Nr);
-    B_all = get_total_perm(2 * Nr);
-
+    
     % LRA-MMSE totalmente conectado
     full = Nr * (2 * Nr - 1); % Número de comparadores totalmente conectados
-    M_prime_full = 2 * Nr + full;
     B_alpha_f = 1 / sqrt(2) * get_alpha_perm(full, 2 * Nr, position);
     B_full = [I_Nr_r; B_alpha_f];
+    %%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%%%% Variance of H_r approach%%%%%
+    new_H_r = abs(H_r).^2;
+    var_H_r = sum(new_H_r,2);
+    [var_H_r_sort,position] = sort(var_H_r,'descend');
+    [var_H_r_sort_2,position_2] = sort(var_H_r,'ascend');
+    %%%%%
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Comparator Network Matrices
+    B_prime = 1/sqrt(2) * get_random_perm(alpha,2*Nr);
+    B = [I_Nr_r ; B_prime];
+    %%%%%%%
+    B_all_indexes = get_all_perm(n_max_comb , 2*Nr);
+    B_all = get_total_perm(2*Nr);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    M_prime_full = 2 * Nr + full;
+    B_alpha_f = 1/sqrt(2) * get_alpha_perm(full,2*Nr,position);
+    B_full = [I_Nr_r ; B_alpha_f];
     %Ruido
     for i = 1:length(SNR)
         sigma_n = sqrt(sigma_x^2 ./ SNR(i));
@@ -122,7 +133,7 @@ for h = 1:channel_realizations
         %I_select(i_SNR, i_channel) = 0.5 * log2( det( eye(2*Nr + alpha) + ...
         %    pinv(real(C_eta_eff_r)) * ((sigma_x^2 / 2) * (H_eff_r_q1 * H_eff_r_q1') ) ) );
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        %
+        % Random LRA-MMSE
         Cn_rand = B * Cn_r * B';
         Cz_rand = B * H_r * Cx_r * H_r' * B' + Cn_rand;
         K_rand = diag(diag(Cz_rand))^(-1/2);
@@ -209,28 +220,27 @@ for h = 1:channel_realizations
             
         end
     end
-    %%%%%%%%%%%%%%%%%%%%%%%%%%
-    % Ruido y Señal Recibida
-    combinations = nchoosek(1:full, alpha);
+%%%%%%%%%%%%%%%%%%%%%%%%%%
     for i = 1:length(SNR)
         sigma_n = sqrt(sigma_x^2 / SNR(i));
         Cn_r = (sigma_n^2 / 2) * eye(2 * Nr); % Covarianza de ruido en espacio extendido
         
         disp(['Calculando para SNR = ', num2str(SNR_dB(i)), ' dB']);
-        % Detección LRA-MMSE totalmente conectada
+        %
         Cn_r_full = B_full * Cn_r * B_full';
         Cz_full = B_full * H_r * Cx_r * H_r' * B_full' + Cn_r_full;
         K_full = diag(diag(Cz_full))^(-1/2);
         Czqx_full = sqrt(2 / pi) * K_full * B_full * H_r * Cx_r;
         Czq_full = 2 / pi * (asin(K_full * real(Cz_full) * K_full));
         W_LRA_MMSE_full = Czq_full^(-1) * Czqx_full;
-        % Canal efectivo para red completa
+        %%%%%%%%%%%%%%%%%%%%%%
         temp_CzR = B_full * (H_r * Cx_r * H_r') * B_full' + B_full * Cn_r * B_full';
         k_r_full = diag(1 ./ sqrt(diag(temp_CzR)));
         H_eff_r_q_full = sqrt(2 / pi) * k_r_full * B_full * H_r;
         
-        %%
-        tic;
+        % 
+        k = alpha;
+        combinations = nchoosek(1:full, k);
         max_capacity = -inf;
         min_BER = Inf;
         
@@ -283,8 +293,6 @@ for h = 1:channel_realizations
         
         capacities_exhaustive(i, h) = max_capacity;
         BER_exhaustive(i, h) = min_BER;
-        
-        toc;
     end
 end
 % Promedio sobre realizaciones del canal
@@ -295,7 +303,6 @@ BER_LMMSE = BER_LMMSE / (noise_realizations * Nt * channel_realizations * n_bits
 BER_LRA_MMSE_g = BER_LRA_MMSE_g / (noise_realizations * Nt * channel_realizations * n_bits);
 BER_LRA_MMSE_Optimized = BER_LRA_MMSE_Optimized / (noise_realizations * Nt * channel_realizations * n_bits);
 BER_LRA_MMSE_s = BER_LRA_MMSE_s / (noise_realizations * Nt * channel_realizations * n_bits);
-toc; % 
 I_exhaustive_av = sum(capacities_exhaustive, 2) / channel_realizations;
 BER_exhaustive_av = sum(BER_exhaustive, 2) / channel_realizations;
 % Graficar BER vs. SNR
@@ -315,4 +322,4 @@ grid on;
 title('BER vs. SNR para diferentes detectores');
 legend({'LRA-MMSE (Rand)', 'LRA-MMSE (Full)', 'MMSE 1bit', 'LMMSE', 'LRA-MMSE (g)', 'LRA-MMSE (Optimized)', 'LRA-MMSE (s)', 'Búsqueda Exhaustiva LRA-MMSE'}, 'Location', 'best');
 hold off;
-matlab2tikz('filename', 'graphdet7.tex');
+matlab2tikz('filename', 'graphdet2.tex');
