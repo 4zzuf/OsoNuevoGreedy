@@ -393,3 +393,29 @@ title('BER vs. SNR para diferentes detectores');
 legend({'LRA-MMSE (Rand)', 'LRA-MMSE (Full)', 'MMSE 1bit', 'LMMSE', 'LRA-MMSE (g)', 'LRA-MMSE (Optimized)', 'LRA-MMSE (s)', 'Búsqueda Exhaustiva LRA-MMSE'}, 'Location', 'best');
 hold off;
 matlab2tikz('filename', 'graphdet2.tex');
+function m_comb = get_all_perm(n_max_comb, cols)
+    if nargin == 1
+        cols = n_max_comb;
+        n_max_comb = [];
+    end
+    m_comb = nchoosek(1:cols, 2);
+    if nargin == 2
+        total_combs = size(m_comb, 1);
+        if n_max_comb < total_combs
+            m_comb = m_comb(1:n_max_comb, :);
+        elseif n_max_comb > total_combs
+            warning('n_max_comb exceeds the total number of combinations (%d). Returning all combinations.', total_combs);
+        end
+    end
+end
+
+function B_alpha = get_alpha_perm(n_rows, n_cols, position_array)
+    pairs   = get_all_perm(n_rows, n_cols);
+    n_pairs = size(pairs, 1);
+    positive = position_array(pairs(:, 1));
+    negative = position_array(pairs(:, 2));
+    B_alpha = zeros(n_rows, n_cols);
+    rows = (1:n_pairs).';
+    B_alpha(sub2ind([n_rows, n_cols], rows, positive)) = 1;
+    B_alpha(sub2ind([n_rows, n_cols], rows, negative)) = -1;
+end
