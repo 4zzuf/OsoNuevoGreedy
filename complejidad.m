@@ -8,7 +8,7 @@ alpha = 2 * Nr;
 SNR_dB = 0;  % Evaluate at a single SNR (0 dB) to reduce computation time
 SNR = 10.^(SNR_dB / 10);
 sigma_x = 1;
-channel_realizations = 4;
+channel_realizations = 90;
 
 %% Matrices base
 I_Nr_r = eye(2 * Nr);
