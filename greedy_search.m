@@ -1,16 +1,19 @@
 function [final_W, final_B, K, Cz_r] = greedy_search(B_all, alpha, I_nr_r, Cn_r, H_r, Cx_r, n_max_comb)
 % Alpha first rows of B_all
 B_alpha = B_all(1:alpha,:);
+% Precompute constant matrices
+HCxH = H_r*Cx_r*H_r';
+
 % Computing the MSE for the first alpha rows
 new_B = [I_nr_r ; B_alpha];
 Cn_rand = new_B*Cn_r*new_B';
-K = diag(diag(new_B*H_r*Cx_r*H_r'*new_B'+Cn_rand).^(-1/2));
+K = diag(diag(new_B*HCxH*new_B'+Cn_rand).^(-1/2));
 %Czqx = sqrt(pi/2)*Cx_r*H_r'*new_B'*K;
 Czqx = sqrt(pi/2)*(1/2)*Cx_r*H_r'*new_B'*K;
 
 % Compute Czq ensuring numerical stability
-Czq_matrix = asin(transpose(K) * real(new_B * H_r * Cx_r * H_r' * new_B' + Cn_rand) * K) ...
-    + 1i * asin(transpose(K) * imag(new_B * H_r * Cx_r * H_r' * new_B' + Cn_rand) * K);
+Czq_matrix = asin(transpose(K) * real(new_B * HCxH * new_B' + Cn_rand) * K) ...
+    + 1i * asin(transpose(K) * imag(new_B * HCxH * new_B' + Cn_rand) * K);
 
 if size(Czq_matrix, 1) == size(Czq_matrix, 2) && cond(Czq_matrix) < 1e10
     Czq = inv(Czq_matrix);
@@ -50,11 +53,11 @@ for i=1:alpha
         new_B = [I_nr_r ; B_result];
         Cw_r = new_B*Cn_r*new_B';
         
-        %K = diag(diag(new_B*H_r*Cx_r*H_r'*new_B'+Cw_r))^(-1/2);
-        K = diag(diag(new_B*H_r*Cx_r*H_r'*new_B'+Cw_r).^(-1/2));
+        %K = diag(diag(new_B*HCxH*new_B'+Cw_r))^(-1/2);
+        K = diag(diag(new_B*HCxH*new_B'+Cw_r).^(-1/2));
         %Czqx = sqrt(pi/2)*Cx_r*H_r'*new_B'*K;
         Czqx = sqrt(pi/2)*(1/2)*Cx_r*H_r'*new_B'*K;
-        Czq = pinv(asin(transpose(K)*real(new_B*H_r*Cx_r*H_r'*new_B'+Cw_r)*K) + 1i*asin(transpose(K)*imag(new_B*H_r*Cx_r*H_r'*new_B'+Cw_r)*K));
+        Czq = pinv(asin(transpose(K)*real(new_B*HCxH*new_B'+Cw_r)*K) + 1i*asin(transpose(K)*imag(new_B*HCxH*new_B'+Cw_r)*K));
         W = Czqx*Czq;
         
         %equivalent objective MSE
@@ -83,7 +86,7 @@ for i=1:alpha
 
 end
 % Final Cz_r and K
-Cz_r = final_B*H_r*Cx_r*H_r'*final_B' + final_B*Cn_r*final_B';
+Cz_r = final_B*HCxH*final_B' + final_B*Cn_r*final_B';
 K = diag(diag(Cz_r).^(-1/2));
 
 end
