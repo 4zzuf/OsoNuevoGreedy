@@ -33,28 +33,52 @@ function [final_W, final_B, K, Cz_r] = greedy_otro(B_all, alpha, I_nr_r, Cn_r, H
 selected_idx = [];
 selected_B = [];
 
+% Check availability of Parallel Computing Toolbox
+use_parallel = license('test','Distrib_Computing_Toolbox');
+
 for k = 1:alpha
-    best_idx = 0;
-    best_metric = inf;
     best_Cz = [];
-    % Evaluate each unselected row
-    for j = 1:n_max_comb
-        if ismember(j, selected_idx)
-            continue;
+    % Mask to avoid re-evaluating already selected indices
+    available = true(1, n_max_comb);
+    available(selected_idx) = false;
+
+    metrics = inf(1, n_max_comb);
+    Cz_cell = cell(1, n_max_comb);
+    B_cell = cell(1, n_max_comb);
+    sel_idx = selected_idx; % broadcast for parfor
+
+    if use_parallel
+        parfor j = 1:n_max_comb
+            if ~available(j)
+                continue;
+            end
+            candidate_idx = [sel_idx j];
+            B_candidate = B_all(candidate_idx, :);
+            new_B = [I_nr_r; B_candidate];
+            Cz_candidate = new_B * H_r * Cx_r * H_r' * new_B' + new_B * Cn_r * new_B';
+            metrics(j) = trace(Cz_candidate);
+            Cz_cell{j} = Cz_candidate;
+            B_cell{j} = B_candidate;
         end
-        candidate_idx = [selected_idx j];
-        B_candidate = B_all(candidate_idx, :);
-        new_B = [I_nr_r; B_candidate];
-        Cz_candidate = new_B * H_r * Cx_r * H_r' * new_B' + new_B * Cn_r * new_B';
-        metric = trace(Cz_candidate);
-        if metric < best_metric
-            best_metric = metric;
-            best_idx = j;
-            best_Cz = Cz_candidate;
-            selected_B = B_candidate;
+    else
+        for j = 1:n_max_comb
+            if ~available(j)
+                continue;
+            end
+            candidate_idx = [sel_idx j];
+            B_candidate = B_all(candidate_idx, :);
+            new_B = [I_nr_r; B_candidate];
+            Cz_candidate = new_B * H_r * Cx_r * H_r' * new_B' + new_B * Cn_r * new_B';
+            metrics(j) = trace(Cz_candidate);
+            Cz_cell{j} = Cz_candidate;
+            B_cell{j} = B_candidate;
         end
     end
+
+    [~, best_idx] = min(metrics);
     selected_idx = [selected_idx best_idx];
+    best_Cz = Cz_cell{best_idx};
+    selected_B = B_cell{best_idx};
 end
 
 final_B = [I_nr_r; selected_B];
