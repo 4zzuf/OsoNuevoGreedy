@@ -19,6 +19,16 @@ alpha_mse=2*Nr;
 %
 n_max_comb = sum(1:2 * Nr - 1);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Precompute comparator permutations and reuse them across iterations
+perm_file = 'perm_matrices.mat';
+if exist(perm_file, 'file')
+    load(perm_file, 'B_all_indexes', 'B_all');
+else
+    B_all_indexes = get_all_perm(n_max_comb, 2 * Nr);
+    B_all = get_total_perm(2 * Nr);
+    save(perm_file, 'B_all_indexes', 'B_all');
+end
+
 % Bits y Modulación
 n_bits = 100; % Número de bits por usuario
 bits_symbol = 2; % Bits por símbolo
@@ -60,8 +70,18 @@ for h = 1:channel_realizations
     B_alpha_f = 1 / sqrt(2) * get_alpha_perm(full, 2 * Nr, position);
     B_full = [I_Nr_r; B_alpha_f];
     %%%%%%%%%%%%%%%%%%%%%%%%%%
-    B_all_indexes = get_all_perm(n_max_comb , 2*Nr);
-    B_all = get_total_perm(2*Nr);
+    %%%%% Variance of H_r approach%%%%%
+    new_H_r = abs(H_r).^2;
+    var_H_r = sum(new_H_r,2);
+    [var_H_r_sort,position] = sort(var_H_r,'descend');
+    [var_H_r_sort_2,position_2] = sort(var_H_r,'ascend');
+    %%%%%
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Comparator Network Matrices
+    B_prime = 1/sqrt(2) * get_random_perm(alpha,2*Nr);
+    B = [I_Nr_r ; B_prime];
+    %%%%%%%
+    % B_all_indexes and B_all are precomputed outside the loop
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     M_prime_full = 2 * Nr + full;
     B_alpha_f = 1/sqrt(2) * get_alpha_perm(full,2*Nr,position);
